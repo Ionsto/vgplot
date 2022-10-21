@@ -103,10 +103,17 @@ Return minimal difference of two consecutive x values"
   "Parse input values to plot and return grouped list: ((x y lbl-string) (x1 y1 lbl-string)...)
 For efficiency reasons return ((y nil lbl-string)(...)) if only y given"
   (cond
+    ((stringp (fourth vals)) (cons (list (pop vals) (pop vals) (pop vals) (pop vals))
+                                  (parse-vals vals)))
+    ((and (arrayp (third vals)) (not (stringp (third vals))))
+     (cons (list (pop vals) (pop vals) (pop vals) nil)
+                                    (parse-vals vals)))
     ((stringp (third vals)) (cons (list (pop vals) (pop vals) (pop vals))
                                   (parse-vals vals)))
     ((stringp (second vals)) (cons (list (pop vals) nil (pop vals))
                                    (parse-vals vals)))
+    ;; ((not (stringp (third vals))) (cons (list (pop vals) (pop vals) (pop vals) nil)
+    ;;                                  (parse-vals vals)))
     ((second vals) (cons (list (pop vals) (pop vals) "")
                          (parse-vals vals)))
     (vals (list (list (first vals) nil ""))) ;; special case of plot val to index, i.e. only y exist
@@ -409,6 +416,8 @@ print also response to stdout if print? is true"
     (when act-plot
       (push act-plot plot-list)
       (setf act-plot (make-plot))))
+  (defun datap (x)
+    (and (arrayp x) (not (stringp x))))
   (defun do-plot (&rest vals)
     "Do the actual plot. For documentation see doc string of the macro plot"
     (if act-plot
@@ -417,17 +426,26 @@ print also response to stdout if print? is true"
         (setf act-plot (make-plot)))
     (let ((val-l (parse-vals (vectorize vals)))
           (plt-cmd))
+      ;; (print val-l)
       (loop for pl in val-l do
            (push (with-output-to-temporary-file (tmp-file-stream :template "vgplot-%.dat")
-                   (if (null (second pl)) ;; special case plotting to index
-                       (map nil #'(lambda (a) (format tmp-file-stream "~,,,,,,'eE~%" a)) (first pl))
-                       (map nil #'(lambda (a b) (format tmp-file-stream "~,,,,,,'eE ~,,,,,,'eE~%" a b))
-                            (first pl) (second pl))))
+                   (apply #'map nil
+                          (lambda (&rest vals)
+                            (loop for v in vals 
+                                  do (format tmp-file-stream "~,,,,,,'eE " v)
+                                  )
+                            (format tmp-file-stream "~%"))
+                          (remove-if (lambda (v) (or (not (datap v)) (= 0 (length v)))) pl))
+                   ;; (if (null (second pl)) ;; special case plotting to index
+                   ;;     (map nil #'(lambda (a) (format tmp-file-stream "~,,,,,,'eE~%" a)) (first pl))
+                   ;;     (map nil #'(lambda (a b) (format tmp-file-stream "~,,,,,,'eE ~,,,,,,'eE~%" a b))
+                   ;;          (first pl) (second pl)))
+                   )
                  (tmp-file-list act-plot))
            (setf plt-cmd (concatenate 'string (if plt-cmd
                                                   (concatenate 'string plt-cmd ", ")
                                                   "plot ")
-                                      (format nil "\"~A\" ~A "(first (tmp-file-list act-plot)) (parse-label (third pl))))))
+                                      (format nil "\"~A\" ~A "(first (tmp-file-list act-plot)) (parse-label (first (last pl)))))))
       (format-plot *debug* "set grid~%")
       (when *debug*
         (format t  "~A~%" plt-cmd))
