@@ -103,6 +103,8 @@ Return minimal difference of two consecutive x values"
   "Parse input values to plot and return grouped list: ((x y lbl-string) (x1 y1 lbl-string)...)
 For efficiency reasons return ((y nil lbl-string)(...)) if only y given"
   (cond
+    ((stringp (fifth vals)) (cons (list (pop vals) (pop vals) (pop vals) (pop vals) (pop vals))
+                                  (parse-vals vals)))
     ((stringp (fourth vals)) (cons (list (pop vals) (pop vals) (pop vals) (pop vals))
                                   (parse-vals vals)))
     ((and (arrayp (third vals)) (not (stringp (third vals))))
